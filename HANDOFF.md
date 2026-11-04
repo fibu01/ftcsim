@@ -16,7 +16,7 @@
 - Intake: roller pulls balls in from a cone in front, captured ball travels to the hold point over 0.4 s (no teleport), balls have low bounce and roll to a stop.
 - Verified headless (Playwright, swiftshader): forward, strafe, turn, binding drag pulls left, reversed motor spins, encoder dropout freezes frontLeft, intake grabs and launch throws, two identical runs give identical poses. 7 vitest unit tests on the mecanum model pass.
 - Not verified: frame rate on a real laptop, controller input, look in a real GPU browser. Headless renders at 2 to 5 fps, which says nothing about real hardware.
-- GitHub Pages workflow in .github/workflows/pages.yml. Justin has to set Pages source to "GitHub Actions" in repo settings once.
+- Live at https://fibu01.github.io/ftcsim/ since Nov 4 (Pages source set to GitHub Actions, workflow green, 26 tests in the job summary). Every push to main redeploys. The cloud session can't reach github.io, so Justin checks the live page.
 
 ## Added Nov 4 after Justin's review
 - Battery model: open circuit 12.8 V, 0.12 ohm, current from commanded power and motor load, slow drain. Full-power run sags to 11.7 V at 9.4 A. Brownout fault: tired pack, hub resets under 7 V, encoders zero, motors off 1.5 s.

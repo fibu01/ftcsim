@@ -25,6 +25,12 @@
 - docs/PRD.md has a 10-item roadmap from the review. Order: SDK layer, robot config, run export and diff, batch runs, motor and traction model, sensors and camera, manual field and scoring, alliance robots, more faults, confidence panel.
 - Checked: pure translation in open field gives 0.00 deg yaw (forward, strafe, both diagonals). The 15 deg swing in the review came from touching a field element on the old start lane.
 
+## Added Nov 4, manual landed
+- docs/BIOBUZZ_Competition_Manual_TU07.pdf uploaded by Justin. docs/field-notes.md extracts Section 9 (field, HIVE, FLOWER, elements), 10.3 staging, 10.4 timing, Table 10-2 points, R102 sizing.
+- Applied: field 144 in, tile 24 in, POLLEN 7.1 cm and NECTAR 9.1 cm, 8 s transition confirmed, tip 20 and CELL piece 2 points. Motor constants from the goBILDA 5203 sheet (Justin, Nov 4) in config.ts.
+- Not applied yet (roadmap item 7): hive structure in the field center with two hives, four wall-mounted flowers, gardens, loading zones, staging layout, LEAVE, PARK, FLOWER and GARDEN scoring. The manual has no ramp; ours stays as a teaching obstacle until then.
+- Unknown: flower positions along the walls (need field CAD), tip threshold.
+
 ## Run
 `npm install && npm run dev` then open the URL. `npm test` for unit tests. `npm run build` for dist/.
 

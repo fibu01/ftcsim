@@ -1,13 +1,15 @@
 // All lengths in meters, angles in radians, time in seconds.
 // Values marked [estimate] are tuning placeholders, not measured.
-// Field sizes are placeholders until the Competition Manual field section is in docs/. [confirm in manual]
+// Sizes marked with a manual section come from docs/field-notes.md. Element positions are still placeholders (roadmap item 7).
 
 export const TICK = 0.02; // 20 ms fixed timestep
 
+// Field numbers from the Competition Manual TU07, Section 9 (see docs/field-notes.md).
 export const FIELD = {
-  size: 3.6576, // 12 ft [confirm in manual]
-  wallHeight: 0.3, // [confirm in manual]
-  tile: 0.6096, // 24 in foam tile [confirm in manual]
+  size: 3.6575, // 144 in inside the walls (9.2)
+  wallHeight: 0.3, // perimeter wall height is not stated in text [estimate]
+  tile: 0.6095, // 24 in tile (9.2)
+  tileThickness: 0.015,
 };
 
 export const ROBOT = {
@@ -19,9 +21,12 @@ export const ROBOT = {
   wheelWidth: 0.04,
   wheelbase: 0.30, // front to back axle [estimate]
   trackWidth: 0.40, // left to right wheel center. Outer wheel faces at 0.44 m, under the 0.457 m limit [estimate]
-  ticksPerRev: 537.7, // 312 rpm goBILDA style motor [estimate]
-  motorFreeRpm: 312, // unloaded, at nominal voltage [estimate]
-  motorStallAmps: 9.2, // per motor [estimate]
+  // goBILDA 5203 312 rpm motor, from the manufacturer spec sheet as supplied by Justin on Nov 4 2026.
+  ticksPerRev: 537.7, // encoder at the output shaft
+  motorFreeRpm: 312, // no-load speed at 12 V
+  motorStallAmps: 9.2, // stall current at 12 V
+  motorStallTorqueNm: 2.38, // stall torque at 12 V (24.3 kg.cm)
+  motorNoLoadAmps: 0.25, // no-load current at 12 V
   liftTravel: 0.45,
   liftSpeed: 0.35, // m/s at full power [estimate]
   intakeRadius: 0.03,
@@ -42,15 +47,18 @@ export const DRIVE = {
   staticAngular: 0.05,
 };
 
+// Game numbers from the Competition Manual TU07, Sections 9.8, 10.3, 10.5 (see docs/field-notes.md).
 export const GAME = {
-  pollenRadius: 0.0635, // [confirm in manual]
-  nectarRadius: 0.0635, // [confirm in manual]
-  pollenCount: 10,
+  pollenRadius: 0.0355, // 2.8 in (7.1 cm) ball (9.8)
+  nectarRadius: 0.0455, // 3.6 in (9.1 cm) ball (9.8)
+  pollenCount: 10, // sim scatters a subset; the real match stages 40 (10.3.1). Layout is still a placeholder.
   nectarCount: 4,
-  hiveTipThreshold: 3, // pieces in the CELL before it TIPS [confirm in manual]
-  // Placeholder scoring until the manual's scoring table is in docs/. [confirm in manual]
-  pointsPerPieceInCell: 1,
-  pointsPerHiveTip: 5,
+  hiveTipThreshold: 3, // the manual gives no count; the HIVE is bi-stable and tips on launched mass [estimate]
+  // Table 10-2
+  pointsPerPieceInCell: 2, // TELEOP, counted at match end
+  pointsPerHiveTip: 20,
+  pointsLeave: 3,
+  pointsPark: 5,
   launchSpeed: 4.0, // m/s [estimate]
 };
 

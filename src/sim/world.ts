@@ -14,8 +14,7 @@ export interface LogEntry { t: number; level: 'info' | 'warn' | 'error'; msg: st
 export type RunState = 'stopped' | 'running' | 'paused';
 export type Mode = 'teleop' | 'auto' | 'match';
 export type Phase = 'AUTO' | 'TRANSITION' | 'TELEOP' | 'DONE';
-// Match timing from the game postcard: AUTO is the first 30 seconds, TELEOP the remaining 2 minutes. [confirm in manual]
-// The pause between them, when drivers pick up controllers, is a placeholder. [confirm in manual]
+// Manual TU07 10.4: AUTO 30 s, 8 s transition, TELEOP 2:00.
 export const AUTO_SECONDS = 30, TRANSITION_SECONDS = 8, TELEOP_SECONDS = 120;
 
 export const START = { x: -FIELD.size / 2 + 0.5, z: 0.9, yaw: 0 }; // lane along z = 0.9 is clear of flowers and the hive posts
@@ -115,7 +114,7 @@ export class Simulation {
     } else if (this.phase === 'TRANSITION' && this.matchTime >= TRANSITION_SECONDS) {
       this.phase = 'TELEOP'; this.matchTime = 0; this.info('TELEOP. Drivers take control.');
     } else if (this.phase === 'TELEOP' && this.mode === 'match' && this.matchTime >= TELEOP_SECONDS) {
-      this.phase = 'DONE'; this.stop(); this.info(`Match over. Score ${this.score()} (placeholder points: ${this.field.hiveCount} in CELL, HIVE ${this.field.hiveTipped ? 'tipped' : 'not tipped'})`);
+      this.phase = 'DONE'; this.stop(); this.info(`Match over. Score ${this.score()} (${this.field.hiveCount} in CELL, HIVE ${this.field.hiveTipped ? 'tipped' : 'not tipped'}; no LEAVE, PARK, FLOWER or GARDEN scoring yet)`);
     }
     this.handleBalls();
     this.field.step(TICK);
@@ -164,7 +163,7 @@ export class Simulation {
     this.launchLatch = r.wantLaunch;
   }
 
-  // Placeholder scoring. The real table comes from the manual. [confirm in manual]
+  // Table 10-2 points for what the sim can count today: pieces in the CELL and tips. LEAVE, PARK, FLOWER and GARDEN scoring need the real layout (roadmap item 7).
   score() { return this.field.hiveCount * GAME.pointsPerPieceInCell + (this.field.hiveTipped ? GAME.pointsPerHiveTip : 0); }
 
   syncVisual() { this.robot.syncVisual(0); this.field.syncVisual(); }
@@ -174,7 +173,7 @@ export class Simulation {
     const rows: [string, string][] = [
       ['t', this.time.toFixed(2) + ' s  tick ' + this.tick],
       ['phase', this.phase + (this.phase === 'DONE' ? '' : `  ${Math.max(0, (this.phase === 'AUTO' ? AUTO_SECONDS : this.phase === 'TRANSITION' ? TRANSITION_SECONDS : TELEOP_SECONDS) - this.matchTime).toFixed(0)} s left`)],
-      ['score', `${this.score()}  (placeholder points)`],
+      ['score', `${this.score()}  (tips and CELL only)`],
       ['IMU yaw', (r.imuYaw() * 180 / Math.PI).toFixed(1) + ' deg  (true ' + (r.yaw * 180 / Math.PI).toFixed(1) + ')'],
       ['yaw rate', (r.yawRate * 180 / Math.PI).toFixed(1) + ' deg/s'],
     ];

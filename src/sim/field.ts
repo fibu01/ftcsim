@@ -4,7 +4,8 @@ import { FIELD, GAME } from '../config';
 import { foamTile } from '../render/textures';
 import { Rng } from '../util/rng';
 
-// Placeholder BIOBUZZ layout. Every position and size here is [confirm in manual].
+// Placeholder BIOBUZZ layout. Ball and field sizes come from the manual; element shapes and positions don't yet (roadmap item 7).
+// The manual's field has no ramp. The ramp here is a teaching obstacle for the ramp-drift fault and goes away with the real layout.
 export interface Ball { body: RAPIER.RigidBody; mesh: THREE.Mesh; kind: 'POLLEN' | 'NECTAR'; held: boolean; scored: boolean }
 
 export class Field {

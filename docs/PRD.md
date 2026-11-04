@@ -6,7 +6,7 @@ Status: decisions made Nov 4. Signed off when Justin says go on Phase 1.
 
 1. Deadline: workshop delayed one week. Target: full demo build by Thursday Nov 12 for a Friday Nov 13 delivery.
 2. Team number: none. No decal, no config field.
-3. Field: BIOBUZZ. The game postcard (saved as `docs/game-postcard.md`) gives the elements and vocabulary: POLLEN and NECTAR game pieces, HIVE with a CELL that TIPS, FLOWERS. It has no dimensions. Element sizes and positions stay [confirm in manual] until the Competition Manual field section is saved in `docs/`.
+3. Field: BIOBUZZ. Manual TU07 is in `docs/` (Nov 4) and `docs/field-notes.md` holds the field, element, timing, and scoring numbers with section references. Element positions along the walls still need the field CAD. The manual's field has no ramp; the sim's ramp is a teaching obstacle until the real layout lands (roadmap item 7).
 4. Repo: separate, https://github.com/fibu01/ftcsim. Code, PRD, and reference files live there. This repo keeps only this pointer and the workshop deck.
 5. SDK reference: FtcRobotController 12.0 (Sept 2026). The Sim SDK surface and method names come from its samples, not from memory.
 

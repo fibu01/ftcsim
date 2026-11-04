@@ -20,7 +20,7 @@ export class Hud {
         <select id="speed"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="5">5x</option></select>
         <select id="quality"><option value="high" selected>High</option><option value="low">Low</option></select>
       </div>
-      <div class="badge">BIOBUZZ field is a placeholder, not to scale [confirm in manual]</div>
+      <div class="badge">Field layout is a placeholder. Sizes from the manual, positions not yet.</div>
       <div id="telemetry" class="panel"><h3>Telemetry</h3><table></table></div>
       <div id="faults" class="panel"><h3>Faults</h3></div>
       <div id="help" class="panel"><b>W/S</b> drive <b>A/D</b> strafe <b>←/→</b> rotate <b>Q/E</b> intake in/out <b>R/F</b> lift <b>Space</b> launch <b>Shift</b> slow mode. <b>1-4</b> cameras. A plugged-in controller works too.</div>
@@ -28,7 +28,8 @@ export class Hud {
       <div id="limits" class="panel" hidden><h3>What this sim does and doesn't model</h3>
         <b>Modeled</b>: mecanum body dynamics with a fitted-style acceleration model, Rapier collisions, battery sag and drain, IMU noise and drift, encoder jitter and 40 ms read hold, wheel slip toward commanded speed when blocked, the faults in the panel.<br>
         <b>Not modeled</b>: motor torque and stall curves, per-wheel traction and roller friction, pitch and roll (the ramp is ridden flat), servos, odometry pods, distance and color sensors, a camera (the sample auto reads true ball positions), hub loop timing, partner and opponent robots, penalties.<br>
-        <b>Placeholders</b> [confirm in manual]: every field size and element position, match transition length, scoring points, robot mass and motor constants.<br>
+        <b>From the manual (TU07)</b>: field size, tile size, ball sizes, match timing, tip and CELL points, motor constants from the goBILDA 5203 sheet.<br>
+        <b>Still placeholders</b>: element positions and the HIVE and FLOWER shapes (roadmap item 7), tip threshold, robot mass, wall height.<br>
         Treat results as directional until the manual geometry and a measured motor run are in.
       </div>
       <div id="cams" class="panel"><span style="color:var(--dim)">Camera</span>

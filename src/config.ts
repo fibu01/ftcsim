@@ -48,6 +48,9 @@ export const GAME = {
   pollenCount: 10,
   nectarCount: 4,
   hiveTipThreshold: 3, // pieces in the CELL before it TIPS [confirm in manual]
+  // Placeholder scoring until the manual's scoring table is in docs/. [confirm in manual]
+  pointsPerPieceInCell: 1,
+  pointsPerHiveTip: 5,
   launchSpeed: 4.0, // m/s [estimate]
 };
 

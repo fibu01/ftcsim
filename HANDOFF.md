@@ -17,6 +17,14 @@
 - Faults added: IMU drift, brownout, gamepad disconnect, hub disconnect. No servo model yet, so no stuck servo.
 - Start lane moved to z = 0.9 so the robot clears the flowers and hive posts.
 
+## Added Nov 4, second review
+- Encoder dropout now reads position held and velocity 0 (was: position frozen, velocity live).
+- Full match: AUTO 30 s, TRANSITION 8 s placeholder with the OpMode stopped, TELEOP 120 s, DONE with an end-of-match log line. [confirm in manual]
+- Placeholder score in telemetry: 1 per piece in the CELL, 5 for a tip. [confirm in manual]
+- Limits button in the run bar opens a panel listing what is and isn't modeled.
+- docs/PRD.md has a 10-item roadmap from the review. Order: SDK layer, robot config, run export and diff, batch runs, motor and traction model, sensors and camera, manual field and scoring, alliance robots, more faults, confidence panel.
+- Checked: pure translation in open field gives 0.00 deg yaw (forward, strafe, both diagonals). The 15 deg swing in the review came from touching a field element on the old start lane.
+
 ## Run
 `npm install && npm run dev` then open the URL. `npm test` for unit tests. `npm run build` for dist/.
 

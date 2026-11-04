@@ -15,6 +15,7 @@ export class Hud {
         <button id="pause">Pause</button>
         <button id="step">Step</button>
         <button id="reset">Reset</button>
+        <button id="limitsBtn" title="What is and isn't simulated">Limits</button>
         <span class="state" id="state">stopped</span>
         <select id="speed"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="5">5x</option></select>
         <select id="quality"><option value="high" selected>High</option><option value="low">Low</option></select>
@@ -24,6 +25,12 @@ export class Hud {
       <div id="faults" class="panel"><h3>Faults</h3></div>
       <div id="help" class="panel"><b>W/S</b> drive <b>A/D</b> strafe <b>←/→</b> rotate <b>Q/E</b> intake in/out <b>R/F</b> lift <b>Space</b> launch <b>Shift</b> slow mode. <b>1-4</b> cameras. A plugged-in controller works too.</div>
       <div id="log" class="panel"></div>
+      <div id="limits" class="panel" hidden><h3>What this sim does and doesn't model</h3>
+        <b>Modeled</b>: mecanum body dynamics with a fitted-style acceleration model, Rapier collisions, battery sag and drain, IMU noise and drift, encoder jitter and 40 ms read hold, wheel slip toward commanded speed when blocked, the faults in the panel.<br>
+        <b>Not modeled</b>: motor torque and stall curves, per-wheel traction and roller friction, pitch and roll (the ramp is ridden flat), servos, odometry pods, distance and color sensors, a camera (the sample auto reads true ball positions), hub loop timing, partner and opponent robots, penalties.<br>
+        <b>Placeholders</b> [confirm in manual]: every field size and element position, match transition length, scoring points, robot mass and motor constants.<br>
+        Treat results as directional until the manual geometry and a measured motor run are in.
+      </div>
       <div id="cams" class="panel"><span style="color:var(--dim)">Camera</span>
         <button data-cam="orbit" class="on">1 Orbit</button><button data-cam="chase">2 Chase</button><button data-cam="driver">3 Driver</button><button data-cam="robot">4 Robot cam</button>
       </div>`;
@@ -36,6 +43,7 @@ export class Hud {
     q('#pause').onclick = () => sim.pause();
     q('#step').onclick = () => sim.stepOnce();
     q('#reset').onclick = () => sim.reset();
+    q('#limitsBtn').onclick = () => { const l = q('#limits'); l.hidden = !l.hidden; };
     (q('#speed') as HTMLSelectElement).onchange = e => { sim.speed = parseFloat((e.target as HTMLSelectElement).value); };
     (q('#quality') as HTMLSelectElement).onchange = e => view.setQuality((e.target as HTMLSelectElement).value as 'high' | 'low');
     this.root.querySelectorAll<HTMLButtonElement>('#cams button').forEach(b => { b.onclick = () => this.setCam(b.dataset.cam as CameraMode); });

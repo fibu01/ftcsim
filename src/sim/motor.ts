@@ -37,7 +37,8 @@ export class SimMotor {
   // Called when the hub refreshes its reads.
   latch() {
     this.heldPosition = this.encoderPosition;
-    this.heldVelocity = (this.angularVelocity / (2 * Math.PI)) * ROBOT.ticksPerRev * this.sign() * this.mountSign;
+    // A dead encoder reports no movement at all: position holds and velocity reads 0.
+    this.heldVelocity = this.encoderFrozen ? 0 : (this.angularVelocity / (2 * Math.PI)) * ROBOT.ticksPerRev * this.sign() * this.mountSign;
   }
   resetEncoder() { this.encoderPosition = 0; this.heldPosition = 0; this.heldVelocity = 0; }
   // Free wheel speed (rad/s) the motor would reach at this power and voltage with no load.

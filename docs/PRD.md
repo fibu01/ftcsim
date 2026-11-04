@@ -122,3 +122,18 @@ Scanned or CAD-accurate models, AprilTag detection, a full Java compiler, generi
 - Physics tuning and the Java translator are the two items that can each eat a full day. Fallback for a demo: keyboard-only sim with the code pane shown as a static walkthrough.
 - Field dimensions depend on the manual section being saved in the repo. Until then every size is a placeholder.
 - Rendering in cloud sessions is headless. Visual checks need Justin to open the build in a browser and report back, or screenshots via Playwright, which don't catch frame rate.
+
+## Roadmap after Justin's Nov 4 review
+
+Ordered by what unblocks teams testing their own code. Phases 2 and 3 above are folded in.
+
+1. FTC SDK layer (Phase 2). `hardwareMap`, `DcMotorEx` with run modes, zero-power behavior, PIDF, current; `Servo`; `IMU`; `telemetry` with Driver Station semantics; `LinearOpMode` and `OpMode` lifecycle (init, start, loop, stop, `requestOpModeStop`); gamepad edge semantics. Java subset translator so pasted OpModes run unchanged. Separate Auto and TeleOp selection, run in sequence like an event.
+2. Robot configuration. `robot.json` for chassis size, mass, CG, motor model, gear ratio, wheel type, mechanism geometry, editable in the UI, with a sizing check against the manual's limits once they're in `docs/`.
+3. Run export and comparison (Phase 3). Pose, velocity, encoders, voltage, events to JSON and CSV. Save a run, change a parameter, diff. Replay.
+4. Batch runs. N seeds with randomized start pose, ball placement, sensor noise, mat friction. Success rate, not a single run.
+5. Motor and traction model. Stall torque, free speed, current, per-wheel slip, roller friction, mass and CG tipping. Fit against a measured full-power run from the team robot, not invented constants.
+6. Sensors. Odometry pods, distance and color sensors, a camera model so vision logic can be tested against rendered frames instead of ground truth. Hub loop timing.
+7. Field and scoring from the manual. Geometry, element mass and material, starting positions, scoring table, penalties, match timeline including transition and endgame, score HUD and end-of-match summary.
+8. Alliance partner and opponents. Scripted or simple AI robots for defense and contention.
+9. More faults. Intermittent wiring, gamepad latency, stuck or slipping servo, chain slack, bent shaft.
+10. Model confidence. The Limits panel in the HUD stays current with every change.

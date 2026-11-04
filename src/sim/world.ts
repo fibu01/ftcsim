@@ -13,9 +13,10 @@ const CAPTURE_TIME = 0.4; // seconds for a ball to travel from the roller to the
 export interface LogEntry { t: number; level: 'info' | 'warn' | 'error'; msg: string }
 export type RunState = 'stopped' | 'running' | 'paused';
 export type Mode = 'teleop' | 'auto' | 'match';
-export type Phase = 'AUTO' | 'TELEOP' | 'DONE';
+export type Phase = 'AUTO' | 'TRANSITION' | 'TELEOP' | 'DONE';
 // Match timing from the game postcard: AUTO is the first 30 seconds, TELEOP the remaining 2 minutes. [confirm in manual]
-export const AUTO_SECONDS = 30, TELEOP_SECONDS = 120;
+// The pause between them, when drivers pick up controllers, is a placeholder. [confirm in manual]
+export const AUTO_SECONDS = 30, TRANSITION_SECONDS = 8, TELEOP_SECONDS = 120;
 
 export const START = { x: -FIELD.size / 2 + 0.5, z: 0.9, yaw: 0 }; // lane along z = 0.9 is clear of flowers and the hive posts
 
@@ -103,16 +104,18 @@ export class Simulation {
     const hubWasDown = this.robot.hubDown > 0;
     if (this.phase === 'AUTO') this.autoOpmode(this.robot, this);
     else if (this.phase === 'TELEOP') this.opmode(pad, this.robot);
-    else for (const m of Object.values(this.robot.motors)) m.setPower(0);
+    else for (const m of Object.values(this.robot.motors)) m.setPower(0); // TRANSITION and DONE: OpMode stopped, motors off
     this.robot.step(TICK);
     if (this.robot.hubDown > 0 && !hubWasDown) this.error(`${this.robot.hubDownReason}: hub reset, motors off for ${this.robot.hubDown.toFixed(1)} s`);
     if (this.robot.hubDown <= 0 && hubWasDown) this.info('Hub back');
     this.matchTime += TICK;
     if (this.phase === 'AUTO' && this.matchTime >= AUTO_SECONDS) {
-      if (this.mode === 'match') { this.phase = 'TELEOP'; this.matchTime = 0; this.info('AUTO over. TELEOP, drivers take control.'); }
-      else { this.phase = 'DONE'; this.stop(); }
+      if (this.mode === 'match') { this.phase = 'TRANSITION'; this.matchTime = 0; this.info(`AUTO over. Autonomous OpMode stopped. ${TRANSITION_SECONDS} s until TELEOP.`); }
+      else { this.phase = 'DONE'; this.stop(); this.info(`Autonomous over. Score ${this.score()}`); }
+    } else if (this.phase === 'TRANSITION' && this.matchTime >= TRANSITION_SECONDS) {
+      this.phase = 'TELEOP'; this.matchTime = 0; this.info('TELEOP. Drivers take control.');
     } else if (this.phase === 'TELEOP' && this.mode === 'match' && this.matchTime >= TELEOP_SECONDS) {
-      this.phase = 'DONE'; this.stop(); this.info('Match over');
+      this.phase = 'DONE'; this.stop(); this.info(`Match over. Score ${this.score()} (placeholder points: ${this.field.hiveCount} in CELL, HIVE ${this.field.hiveTipped ? 'tipped' : 'not tipped'})`);
     }
     this.handleBalls();
     this.field.step(TICK);
@@ -161,13 +164,17 @@ export class Simulation {
     this.launchLatch = r.wantLaunch;
   }
 
+  // Placeholder scoring. The real table comes from the manual. [confirm in manual]
+  score() { return this.field.hiveCount * GAME.pointsPerPieceInCell + (this.field.hiveTipped ? GAME.pointsPerHiveTip : 0); }
+
   syncVisual() { this.robot.syncVisual(0); this.field.syncVisual(); }
 
   telemetry(): [string, string][] {
     const r = this.robot, m = r.motors;
     const rows: [string, string][] = [
       ['t', this.time.toFixed(2) + ' s  tick ' + this.tick],
-      ['phase', this.phase + (this.phase === 'DONE' ? '' : `  ${Math.max(0, (this.phase === 'AUTO' ? AUTO_SECONDS : TELEOP_SECONDS) - this.matchTime).toFixed(0)} s left`)],
+      ['phase', this.phase + (this.phase === 'DONE' ? '' : `  ${Math.max(0, (this.phase === 'AUTO' ? AUTO_SECONDS : this.phase === 'TRANSITION' ? TRANSITION_SECONDS : TELEOP_SECONDS) - this.matchTime).toFixed(0)} s left`)],
+      ['score', `${this.score()}  (placeholder points)`],
       ['IMU yaw', (r.imuYaw() * 180 / Math.PI).toFixed(1) + ' deg  (true ' + (r.yaw * 180 / Math.PI).toFixed(1) + ')'],
       ['yaw rate', (r.yawRate * 180 / Math.PI).toFixed(1) + ' deg/s'],
     ];

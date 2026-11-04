@@ -1,0 +1,52 @@
+        Students will use their engineering
+        skills to amplify the excitement and
+        energy of the natural world in the
+        2026-2027 FIRST® Tech Challenge
+        game, BIOBUZZTM presented by RTX.
+
+        This season, the FIRST Tech Challenge
+        community will generate buzz as
+        teams from around the world
+        collaborate, innovate, and
+        problem-solve. Students will design,
+        build, and program robots to compete
+        in a dynamic, hands-on,
+        biodiversity-themed challenge.
+
+
+
+ENGINEER A THRIVING
+PLANET WITH FIRST®
+firstinspires.org/programs/ftc
+GAMEPLAY
+ALLIANCES of two teams each compete to score POLLEN and
+NECTAR into their HIVES and FLOWERS. When enough POLLEN or
+NECTAR is launched into the CELL the HIVE will TIP. Each time a
+HIVE is TIPPED points are earned, and additional NECTAR is
+unlocked.
+
+AUTO: During the first 30 seconds of the MATCH, the ROBOTS
+operate autonomously. ROBOTS can use sensors to collect
+POLLEN from the FLOWERS and navigate to launch into their HIVE.
+
+TELEOP: During the remaining 2 minutes of the MATCH, drivers
+take control of their ROBOT and continue to launch into their HIVE.
+As time runs out, ALLIANCES work to fill FLOWERS with POLLEN
+and NECTAR. ALLIANCES earn points by placing their NECTAR in
+each FLOWER before their opponent. ALLIANCES also earn points
+for owning a FLOWER if their NECTAR is the top-most placed in a
+FLOWER.
+
+The ALLIANCE that earns the most points wins the MATCH and
+additional RANKING POINTS can be earned though completing
+other scoring achievements.
+
+
+                  CELL                    POLLEN
+
+          HIVE
+
+
+                                                        NECTAR
+FLOWER
+

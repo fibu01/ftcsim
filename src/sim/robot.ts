@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { ROBOT, TICK, DRIVE, GAME } from '../config';
+import { ROBOT, GAME, BATTERY, SENSORS } from '../config';
 import { SimMotor } from './motor';
 import { driveAcceleration, powerKinematics, inverseKinematics, FL, FR, BL, BR, Motion } from './mecanum';
+
+const W_FREE = (ROBOT.motorFreeRpm * 2 * Math.PI) / 60;
 import { honeycomb, chain } from '../render/textures';
 import { fault } from './faults';
 import { Rng } from '../util/rng';
@@ -32,6 +34,13 @@ export class Robot {
   private rng = new Rng(7);
   dragIndicator = 0; driftIndicator = 0;
   onRamp = false;
+  // Battery and hub
+  voltage = BATTERY.openCircuit; openCircuit = BATTERY.openCircuit; amps = 0;
+  hubDown = 0;      // seconds left of a hub disconnect or brownout reset
+  hubDownReason = '';
+  // IMU as the OpMode sees it: true yaw plus drift and noise, refreshed on the read hold.
+  private imuDrift = 0; private imuHeld = 0; private holdCounter = 0;
+  private sensorRng = new Rng(11);
   private tmpQ = new THREE.Quaternion();
   private tmpV = new THREE.Vector3();
 
@@ -47,9 +56,9 @@ export class Robot {
       .setTranslation(start.x, ROBOT.wheelRadius + 0.01, start.z)
       .setRotation(yawQuat(start.yaw))
       .enabledRotations(false, true, false)
-      .setLinearDamping(0).setAngularDamping(0).setCcdEnabled(true);
+      .setLinearDamping(0).setAngularDamping(3.5).setCcdEnabled(true);
     this.body = world.createRigidBody(desc);
-    const col = RAPIER.ColliderDesc.cuboid(ROBOT.length / 2, ROBOT.wheelRadius, ROBOT.trackWidth / 2 + ROBOT.wheelWidth / 2)
+    const col = RAPIER.ColliderDesc.roundCuboid(ROBOT.length / 2 - 0.03, ROBOT.wheelRadius - 0.01, ROBOT.trackWidth / 2 + ROBOT.wheelWidth / 2 - 0.03, 0.03)
       .setFriction(0).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min).setRestitution(0).setMass(ROBOT.mass);
     world.createCollider(col, this.body);
     this.updateYaw();
@@ -57,7 +66,8 @@ export class Robot {
 
   reset() {
     for (const m of Object.values(this.motors)) { m.setPower(0); m.setMode('STOP_AND_RESET_ENCODER'); m.setMode('RUN_WITHOUT_ENCODER'); }
-    this.liftPos = 0; this.heldBall = null; this.capture = null; this.rng = new Rng(7);
+    this.liftPos = 0; this.heldBall = null; this.capture = null; this.rng = new Rng(7); this.sensorRng = new Rng(11);
+    this.imuDrift = 0; this.imuHeld = 0; this.holdCounter = 0; this.openCircuit = BATTERY.openCircuit; this.voltage = BATTERY.openCircuit; this.hubDown = 0;
   }
 
   // body-frame velocity: x forward, y left, theta ccw
@@ -77,13 +87,23 @@ export class Robot {
     this.yawRate = this.body.angvel().y;
   }
 
-  step(dt: number, voltage: number) {
+  // IMU yaw as read by the OpMode (degrees would be the SDK's YawPitchRollAngles; here radians).
+  imuYaw() { return this.imuHeld; }
+
+  step(dt: number) {
     this.updateYaw();
     const m = this.motors;
     const drag = fault('bindingDrag'), ramp = fault('rampDrift'), rev = fault('motorReversed'), enc = fault('encoderDropout'), jam = fault('intakeJam');
+    const noise = fault('sensorNoise').on, imuBad = fault('imuDrift'), weak = fault('brownout');
     m.backRight.reversedFault = rev.on;
     m.frontLeft.encoderFrozen = enc.on;
 
+    // Hub down: motors get no power, sensors hold their last read.
+    if (this.hubDown > 0) { this.hubDown -= dt; for (const mo of Object.values(m)) mo.setPower(0); }
+
+    // Battery: open-circuit voltage minus current through the pack resistance. Current rises with
+    // commanded power and with how far each motor is from its free speed (stall draws the most).
+    const voltage = this.voltage;
     const p = [m.frontLeft.effectivePower(), m.frontRight.effectivePower(), m.backLeft.effectivePower(), m.backRight.effectivePower()];
     // Binding drag: the left side loses effort in proportion to severity, so the robot pulls left.
     if (drag.on) { p[FL] *= 1 - 0.6 * drag.severity; p[BL] *= 1 - 0.6 * drag.severity; }
@@ -105,10 +125,41 @@ export class Robot {
     this.body.addForce(F, true);
     this.body.addTorque({ x: 0, y: IZZ * acc.theta, z: 0 }, true);
 
-    // Encoders follow the real body motion.
-    const w = inverseKinematics(vel);
+    // Wheel speed: follows the body when the wheels grip. When the body can't follow the command
+    // (a wall, a collision) the wheels slip toward their commanded speed, which is what the encoder sees.
+    const wBody = inverseKinematics(vel);
     const list = [m.frontLeft, m.frontRight, m.backLeft, m.backRight];
+    const w = list.map((mo, i) => {
+      const cmd = mo.commandedSpeed(voltage) * (drag.on && (i === FL || i === BL) ? 1 - 0.6 * drag.severity : 1);
+      const gap = cmd - wBody[i];
+      const slip = Math.min(1, Math.abs(gap) / (0.6 * W_FREE));
+      return wBody[i] + gap * slip;
+    });
     list.forEach((mo, i) => { mo.angularVelocity = w[i]; mo.integrate(dt); this.wheelAngles[i] += w[i] * dt; });
+
+    // Current draw and voltage sag.
+    let amps = BATTERY.baseAmps;
+    list.forEach((mo, i) => { const cmd = mo.commandedSpeed(voltage); amps += Math.abs(mo.effectivePower()) * ROBOT.motorStallAmps * Math.max(0.1, 1 - Math.abs(w[i]) / Math.max(1e-6, Math.abs(cmd) + 1e-6) * 0.9); });
+    amps += Math.abs(m.lift.effectivePower()) * 4 + Math.abs(m.intake.effectivePower()) * 3;
+    this.amps = amps;
+    this.openCircuit -= amps * dt * BATTERY.drainPerCoulomb;
+    const R = BATTERY.internalResistance * (weak.on ? 1 + 2.5 * weak.severity : 1);
+    const oc = this.openCircuit - (weak.on ? 1.2 * weak.severity : 0);
+    this.voltage = Math.max(0, oc - amps * R);
+    if (weak.on && this.voltage < BATTERY.brownoutVolts && this.hubDown <= 0) {
+      this.hubDown = 1.5; this.hubDownReason = 'BROWNOUT';
+      for (const mo of Object.values(m)) mo.resetEncoder();
+    }
+
+    // Sensor reads: refresh every readHoldTicks, add noise and drift.
+    this.holdCounter++;
+    const driftRate = (noise ? SENSORS.imuDriftDegPerSec : 0) + (imuBad.on ? 2.5 * imuBad.severity : 0);
+    this.imuDrift += ((this.sensorRng.next() - 0.5) * 2 * driftRate + (imuBad.on ? 0.8 * imuBad.severity : 0)) * (Math.PI / 180) * dt;
+    if (this.hubDown <= 0 && (!noise || this.holdCounter % SENSORS.readHoldTicks === 0)) {
+      const n = noise ? (this.sensorRng.next() - 0.5) * 2 * SENSORS.imuNoiseDeg * (Math.PI / 180) : 0;
+      this.imuHeld = this.yaw + this.imuDrift + n;
+      for (const mo of Object.values(m)) { mo.noiseTicks = noise ? Math.round((this.sensorRng.next() - 0.5) * 2 * SENSORS.encoderNoiseTicks) : 0; mo.latch(); }
+    }
 
     // Indicators for telemetry.
     const leftV = (w[FL] + w[BL]) / 2, rightV = (w[FR] + w[BR]) / 2;
@@ -125,7 +176,6 @@ export class Robot {
     const ip = jam.on ? 0 : m.intake.effectivePower();
     m.intake.angularVelocity = ip * 60; m.intake.integrate(dt);
     this.intakeAngle += ip * 60 * dt;
-    void DRIVE; void TICK;
   }
 
   intakeActive() { return !fault('intakeJam').on && this.motors.intake.effectivePower() > 0.2; }

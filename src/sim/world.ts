@@ -6,6 +6,7 @@ import { Field } from './field';
 import { GamepadState, emptyGamepad } from './gamepad';
 import { FAULTS } from './faults';
 import { ROBOT } from '../config';
+import { Rng } from '../util/rng';
 
 const CAPTURE_TIME = 0.4; // seconds for a ball to travel from the roller to the hold point
 
@@ -16,7 +17,7 @@ export type Phase = 'AUTO' | 'TELEOP' | 'DONE';
 // Match timing from the game postcard: AUTO is the first 30 seconds, TELEOP the remaining 2 minutes. [confirm in manual]
 export const AUTO_SECONDS = 30, TELEOP_SECONDS = 120;
 
-export const START = { x: -FIELD.size / 2 + 0.5, z: 0.6, yaw: 0 };
+export const START = { x: -FIELD.size / 2 + 0.5, z: 0.9, yaw: 0 }; // lane along z = 0.9 is clear of flowers and the hive posts
 
 export class Simulation {
   world: RAPIER.World;
@@ -28,7 +29,7 @@ export class Simulation {
   speed = 1;
   log: LogEntry[] = [];
   gamepad1: GamepadState = emptyGamepad();
-  voltage = 12.6;
+  private faultRng = new Rng(3); private nextGamepadDrop = 6; private padDownUntil = -1; private nextHubDrop = 9;
   seed = 1;
   private acc = 0;
   private prevFaults = FAULTS.map(f => f.on);
@@ -78,6 +79,7 @@ export class Simulation {
     this.robot.attach(this.world, START);
     this.robot.reset();
     this.time = 0; this.tick = 0; this.acc = 0; this.scoredCount = 0; this.launchLatch = false;
+    this.faultRng = new Rng(3); this.nextGamepadDrop = 6; this.padDownUntil = -1; this.nextHubDrop = 9;
     this.state = 'stopped'; this.phase = this.mode === 'teleop' ? 'TELEOP' : 'AUTO'; this.matchTime = 0; this.info('Reset');
   }
 
@@ -93,10 +95,18 @@ export class Simulation {
     FAULTS.forEach((f, i) => {
       if (f.on !== this.prevFaults[i]) { this.warn(`Fault ${f.on ? 'ON' : 'off'}: ${f.label}`); this.prevFaults[i] = f.on; }
     });
+    // Gamepad disconnect: the driver station drops the pad for a moment, sticks read zero.
+    const gd = FAULTS.find(f => f.id === 'gamepadDisconnect')!, hd = FAULTS.find(f => f.id === 'hubDisconnect')!;
+    if (gd.on && this.time >= this.nextGamepadDrop) { this.padDownUntil = this.time + 0.8 + 1.5 * gd.severity; this.nextGamepadDrop = this.time + 5 + this.faultRng.range(0, 8) * (1.2 - gd.severity); this.warn('Gamepad disconnected'); }
+    const pad = this.time < this.padDownUntil ? emptyGamepad() : this.gamepad1;
+    if (hd.on && this.time >= this.nextHubDrop && this.robot.hubDown <= 0) { this.robot.hubDown = 1 + 2 * hd.severity; this.robot.hubDownReason = 'HUB DISCONNECT'; this.nextHubDrop = this.time + 6 + this.faultRng.range(0, 10) * (1.2 - hd.severity); }
+    const hubWasDown = this.robot.hubDown > 0;
     if (this.phase === 'AUTO') this.autoOpmode(this.robot, this);
-    else if (this.phase === 'TELEOP') this.opmode(this.gamepad1, this.robot);
+    else if (this.phase === 'TELEOP') this.opmode(pad, this.robot);
     else for (const m of Object.values(this.robot.motors)) m.setPower(0);
-    this.robot.step(TICK, this.voltage);
+    this.robot.step(TICK);
+    if (this.robot.hubDown > 0 && !hubWasDown) this.error(`${this.robot.hubDownReason}: hub reset, motors off for ${this.robot.hubDown.toFixed(1)} s`);
+    if (this.robot.hubDown <= 0 && hubWasDown) this.info('Hub back');
     this.matchTime += TICK;
     if (this.phase === 'AUTO' && this.matchTime >= AUTO_SECONDS) {
       if (this.mode === 'match') { this.phase = 'TELEOP'; this.matchTime = 0; this.info('AUTO over. TELEOP, drivers take control.'); }
@@ -158,7 +168,7 @@ export class Simulation {
     const rows: [string, string][] = [
       ['t', this.time.toFixed(2) + ' s  tick ' + this.tick],
       ['phase', this.phase + (this.phase === 'DONE' ? '' : `  ${Math.max(0, (this.phase === 'AUTO' ? AUTO_SECONDS : TELEOP_SECONDS) - this.matchTime).toFixed(0)} s left`)],
-      ['IMU yaw', (r.yaw * 180 / Math.PI).toFixed(1) + ' deg'],
+      ['IMU yaw', (r.imuYaw() * 180 / Math.PI).toFixed(1) + ' deg  (true ' + (r.yaw * 180 / Math.PI).toFixed(1) + ')'],
       ['yaw rate', (r.yawRate * 180 / Math.PI).toFixed(1) + ' deg/s'],
     ];
     for (const mo of [m.frontLeft, m.frontRight, m.backLeft, m.backRight])
@@ -168,7 +178,7 @@ export class Simulation {
     rows.push(['intake', r.heldBall ? 'holding' : r.intakeActive() ? 'running' : 'idle']);
     rows.push(['lift', (r.liftPos * 1000).toFixed(0) + ' mm  enc ' + m.lift.getCurrentPosition()]);
     rows.push(['hive', `${this.field.hiveCount} in cell${this.field.hiveTipped ? '  TIPPED' : ''}`]);
-    rows.push(['voltage', this.voltage.toFixed(1) + ' V']);
+    rows.push(['battery', `${r.voltage.toFixed(2)} V  ${r.amps.toFixed(1)} A` + (r.hubDown > 0 ? `  ${r.hubDownReason}` : '')]);
     return rows;
   }
 }

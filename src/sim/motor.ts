@@ -13,6 +13,8 @@ export class SimMotor {
   angularVelocity = 0;       // rad/s, set by the drivetrain each tick
   private encoderPosition = 0; // ticks, float accumulator
   encoderFrozen = false;     // encoder dropout fault
+  noiseTicks = 0;            // added on read when sensor noise is on
+  private heldVelocity = 0; private heldPosition = 0; // read-hold copies
   reversedFault = false;     // motor reversed fault
 
   // mountSign is -1 for motors mounted mirrored (the left side), so positive motor power drives the robot backward
@@ -25,13 +27,21 @@ export class SimMotor {
   getDirection() { return this.direction; }
   setMode(m: RunMode) {
     this.mode = m;
-    if (m === 'STOP_AND_RESET_ENCODER') { this.encoderPosition = 0; this.power = 0; }
+    if (m === 'STOP_AND_RESET_ENCODER') { this.resetEncoder(); this.power = 0; }
   }
   getMode() { return this.mode; }
   setZeroPowerBehavior(z: ZeroPowerBehavior) { this.zeroPowerBehavior = z; }
-  getCurrentPosition() { return Math.round(this.encoderPosition); }
+  getCurrentPosition() { return Math.round(this.heldPosition + this.noiseTicks); }
   // ticks per second, like DcMotorEx.getVelocity()
-  getVelocity() { return (this.angularVelocity / (2 * Math.PI)) * ROBOT.ticksPerRev * this.sign() * this.mountSign; }
+  getVelocity() { return this.heldVelocity; }
+  // Called when the hub refreshes its reads.
+  latch() {
+    this.heldPosition = this.encoderPosition;
+    this.heldVelocity = (this.angularVelocity / (2 * Math.PI)) * ROBOT.ticksPerRev * this.sign() * this.mountSign;
+  }
+  resetEncoder() { this.encoderPosition = 0; this.heldPosition = 0; this.heldVelocity = 0; }
+  // Free wheel speed (rad/s) the motor would reach at this power and voltage with no load.
+  commandedSpeed(voltage: number) { return this.effectivePower() * (voltage / 12) * (ROBOT.motorFreeRpm * 2 * Math.PI / 60); }
 
   // effective power after direction and faults
   effectivePower() { return this.power * this.sign() * this.mountSign * (this.reversedFault ? -1 : 1); }

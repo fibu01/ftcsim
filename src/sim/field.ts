@@ -215,7 +215,7 @@ export class Field {
   }
 }
 
-// Spawn areas keep the start lane (z near 0.6 on the -x side) clear.
+// Spawn areas keep the start lane (z near 0.9 on the -x side) clear.
 export function ballSpot(kind: 'POLLEN' | 'NECTAR', rng: Rng): [number, number] {
   return kind === 'POLLEN' ? [rng.range(-0.6, 0.9), rng.range(-1.4, 0.2)] : [rng.range(-1.0, -0.3), rng.range(-1.2, 0.0)];
 }

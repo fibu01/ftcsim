@@ -2,11 +2,20 @@
 
 ## State
 - Phase 1 built and pushed: field, robot, Rapier physics, keyboard and controller drive, four cameras, telemetry, event log, five faults, run/pause/step/reset, speed, quality toggle. Reset rebuilds the physics world so replays match.
-- Match clock: TeleOp, Autonomous (30 s), or Full match (AUTO 30 s then TELEOP 120 s, from the postcard, [confirm in manual]). Built-in sample auto (src/opmode/sampleAuto.ts) seeks POLLEN by a vision stand-in bearing, intakes, aims at the HIVE, launches, repeats, parks at 24 s. Headless run on Nov 4: 3 launches, 3 in the CELL, HIVE tipped.
+- Match clock: TeleOp, Autonomous (30 s), or Full match (AUTO 30 s then TELEOP 120 s, from the postcard, [confirm in manual]). Built-in sample auto (src/opmode/sampleAuto.ts) seeks POLLEN by a vision stand-in bearing, intakes, aims at the HIVE, launches, repeats, parks at 24 s. Headless run on Nov 4 (lane z = 0.9): 3 launches, 2 in the CELL.
 - Intake: roller pulls balls in from a cone in front, captured ball travels to the hold point over 0.4 s (no teleport), balls have low bounce and roll to a stop.
 - Verified headless (Playwright, swiftshader): forward, strafe, turn, binding drag pulls left, reversed motor spins, encoder dropout freezes frontLeft, intake grabs and launch throws, two identical runs give identical poses. 7 vitest unit tests on the mecanum model pass.
 - Not verified: frame rate on a real laptop, controller input, look in a real GPU browser. Headless renders at 2 to 5 fps, which says nothing about real hardware.
 - GitHub Pages workflow in .github/workflows/pages.yml. Justin has to set Pages source to "GitHub Actions" in repo settings once.
+
+## Added Nov 4 after Justin's review
+- Battery model: open circuit 12.8 V, 0.12 ohm, current from commanded power and motor load, slow drain. Full-power run sags to 11.7 V at 9.4 A. Brownout fault: tired pack, hub resets under 7 V, encoders zero, motors off 1.5 s.
+- Sensors: IMU white noise 0.25 deg, slow drift, encoder jitter 1 tick, 40 ms read hold. "Sensor noise" toggle (on by default) turns them off for perfect reads. IMU drift fault adds a fast walk. Telemetry shows IMU yaw and true yaw side by side.
+- Encoders read the wheel, not the body: when the body is blocked the wheels slip toward commanded speed. Head-on wall hit at full power now reads four equal encoder speeds and 29 deg/s peak yaw (was 224 deg/s with mixed signs).
+- Robot box: 0.43 by 0.38 m frame, wheels at 0.40 m track, outer faces 0.44 m, under the 18 in limit. Rounded collider, angular damping 3.5.
+- Drive top speed is now the loaded 12 V figure (1.25 forward, 0.95 strafe). Measured 1.2 and 0.87 with sag. No stall or torque curve yet.
+- Faults added: IMU drift, brownout, gamepad disconnect, hub disconnect. No servo model yet, so no stuck servo.
+- Start lane moved to z = 0.9 so the robot clears the flowers and hive posts.
 
 ## Run
 `npm install && npm run dev` then open the URL. `npm test` for unit tests. `npm run build` for dist/.

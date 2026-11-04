@@ -55,8 +55,10 @@ export function sampleAuto(r: Robot, sim: Simulation) {
     }
     case 'approach': {
       const h = r.bearingTo(sim.field.hiveCenter);
-      drive(r, h.distance > 1.1 ? 0.6 : 0, 0, turnTo(h.bearing)); r.motors.lift.setPower(1);
-      if (h.distance <= 1.1 && Math.abs(h.bearing) < 0.05 && Math.abs(r.yawRate) < 0.2) { step = 'launch'; stepTime = 0; }
+      // Hold a launch window 0.85 to 1.05 m out. Back up if the last cycle left us too close.
+      const axial = h.distance > 1.05 ? 0.6 : h.distance < 0.85 ? -0.5 : 0;
+      drive(r, axial, 0, turnTo(h.bearing)); r.motors.lift.setPower(1);
+      if (axial === 0 && Math.abs(h.bearing) < 0.05 && Math.abs(r.yawRate) < 0.2 && r.liftPos > 0.4) { step = 'launch'; stepTime = 0; }
       break;
     }
     case 'launch': {

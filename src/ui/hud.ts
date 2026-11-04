@@ -10,6 +10,7 @@ export class Hud {
   constructor(private sim: Simulation, private view: View) {
     this.root.innerHTML = `
       <div id="runbar" class="panel">
+        <select id="mode" title="What runs when you press Run"><option value="teleop" selected>TeleOp</option><option value="auto">Autonomous (30 s)</option><option value="match">Full match</option></select>
         <button id="run" class="primary">Run</button>
         <button id="pause">Pause</button>
         <button id="step">Step</button>
@@ -31,6 +32,7 @@ export class Hud {
     this.stateEl = this.root.querySelector('#state')!;
     const q = (s: string) => this.root.querySelector(s) as HTMLElement;
     q('#run').onclick = () => sim.run();
+    (q('#mode') as HTMLSelectElement).onchange = e => { sim.mode = (e.target as HTMLSelectElement).value as 'teleop' | 'auto' | 'match'; sim.reset(); };
     q('#pause').onclick = () => sim.pause();
     q('#step').onclick = () => sim.stepOnce();
     q('#reset').onclick = () => sim.reset();

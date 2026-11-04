@@ -20,6 +20,8 @@ export class Robot {
   liftPos = 0; // meters
   intakeAngle = 0;
   heldBall: RAPIER.RigidBody | null = null;
+  // Capture animation: ball moves from the intake mouth up to the hold point over CAPTURE_TIME.
+  capture: { from: THREE.Vector3; t: number } | null = null;
   wantLaunch = false;
   yaw = 0; yawRate = 0;
   wheelAngles = [0, 0, 0, 0];
@@ -55,7 +57,7 @@ export class Robot {
 
   reset() {
     for (const m of Object.values(this.motors)) { m.setPower(0); m.setMode('STOP_AND_RESET_ENCODER'); m.setMode('RUN_WITHOUT_ENCODER'); }
-    this.liftPos = 0; this.heldBall = null; this.rng = new Rng(7);
+    this.liftPos = 0; this.heldBall = null; this.capture = null; this.rng = new Rng(7);
   }
 
   // body-frame velocity: x forward, y left, theta ccw
@@ -127,13 +129,36 @@ export class Robot {
   }
 
   intakeActive() { return !fault('intakeJam').on && this.motors.intake.effectivePower() > 0.2; }
+  // Robot-local point (x forward, y up, z right) to world.
+  localToWorld(x: number, y: number, z: number): THREE.Vector3 {
+    const p = this.body.translation(), c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+    return new THREE.Vector3(p.x + c * x + s * z, p.y - ROBOT.wheelRadius + y, p.z - s * x + c * z);
+  }
+  worldToLocal(w: THREE.Vector3): THREE.Vector3 {
+    const p = this.body.translation(), c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+    const dx = w.x - p.x, dz = w.z - p.z;
+    return new THREE.Vector3(c * dx - s * dz, w.y - (p.y - ROBOT.wheelRadius), s * dx + c * dz);
+  }
+  // Bearing (rad, ccw positive) and distance from the robot to a world point.
+  bearingTo(w: THREE.Vector3): { bearing: number; distance: number } {
+    const l = this.worldToLocal(w);
+    return { bearing: Math.atan2(-l.z, l.x), distance: Math.hypot(l.x, l.z) };
+  }
   intakePoint(): THREE.Vector3 {
     const p = this.body.translation();
     return new THREE.Vector3(p.x + Math.cos(this.yaw) * (ROBOT.length / 2 + 0.06), GAME.pollenRadius, p.z - Math.sin(this.yaw) * (ROBOT.length / 2 + 0.06));
   }
-  holdPoint(): THREE.Vector3 {
-    const p = this.body.translation();
-    return new THREE.Vector3(p.x + Math.cos(this.yaw) * 0.05, ROBOT.wheelRadius * 2 + 0.12 + this.liftPos, p.z - Math.sin(this.yaw) * 0.05);
+  holdPoint(): THREE.Vector3 { return this.localToWorld(0.05, ROBOT.wheelRadius * 2 + 0.12 + this.liftPos, 0); }
+  // Where the held ball is right now, following the capture animation.
+  heldBallPoint(): THREE.Vector3 {
+    const hold = this.worldToLocal(this.holdPoint());
+    if (!this.capture) return this.holdPoint();
+    const k = Math.min(1, this.capture.t);
+    const e = k * k * (3 - 2 * k);
+    const l = this.capture.from.clone().lerp(hold, e);
+    // Arc: dip under the plate then rise behind the intake
+    l.y += Math.sin(e * Math.PI) * 0.03;
+    return this.localToWorld(l.x, l.y, l.z);
   }
   launchVelocity(): THREE.Vector3 {
     const v = GAME.launchSpeed;

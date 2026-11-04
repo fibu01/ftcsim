@@ -5,6 +5,7 @@ import { Hud } from './ui/hud';
 import { Input } from './input/input';
 import { defaultTeleop } from './opmode/defaultTeleop';
 import { FAULTS } from './sim/faults';
+import { sampleAuto } from './opmode/sampleAuto';
 
 async function main() {
   await RAPIER.init();
@@ -12,6 +13,7 @@ async function main() {
   const view = new View(canvas);
   const sim = new Simulation();
   sim.opmode = defaultTeleop;
+  sim.autoOpmode = sampleAuto;
   view.scene.add(sim.scene);
   const hud = new Hud(sim, view);
   const input = new Input();

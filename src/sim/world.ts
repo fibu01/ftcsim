@@ -5,9 +5,16 @@ import { Robot } from './robot';
 import { Field } from './field';
 import { GamepadState, emptyGamepad } from './gamepad';
 import { FAULTS } from './faults';
+import { ROBOT } from '../config';
+
+const CAPTURE_TIME = 0.4; // seconds for a ball to travel from the roller to the hold point
 
 export interface LogEntry { t: number; level: 'info' | 'warn' | 'error'; msg: string }
 export type RunState = 'stopped' | 'running' | 'paused';
+export type Mode = 'teleop' | 'auto' | 'match';
+export type Phase = 'AUTO' | 'TELEOP' | 'DONE';
+// Match timing from the game postcard: AUTO is the first 30 seconds, TELEOP the remaining 2 minutes. [confirm in manual]
+export const AUTO_SECONDS = 30, TELEOP_SECONDS = 120;
 
 export const START = { x: -FIELD.size / 2 + 0.5, z: 0.6, yaw: 0 };
 
@@ -28,6 +35,10 @@ export class Simulation {
   private launchLatch = false;
   private scoredCount = 0;
   opmode: (g: GamepadState, r: Robot) => void = () => {};
+  autoOpmode: (r: Robot, sim: Simulation) => void = () => {};
+  mode: Mode = 'teleop';
+  phase: Phase = 'TELEOP';
+  matchTime = 0; // seconds since the current phase started
 
   constructor() {
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -46,7 +57,14 @@ export class Simulation {
     if (this.log.length > 400) this.log.shift();
   }
 
-  run() { if (this.state !== 'running') { this.state = 'running'; this.info('OpMode started'); } }
+  run() {
+    if (this.state === 'running') return;
+    if (this.state === 'stopped') {
+      this.phase = this.mode === 'teleop' ? 'TELEOP' : 'AUTO'; this.matchTime = 0;
+      this.info(this.mode === 'match' ? 'Match start: AUTO' : this.mode === 'auto' ? 'Autonomous started' : 'TeleOp started');
+    }
+    this.state = 'running';
+  }
   pause() { if (this.state === 'running') { this.state = 'paused'; this.info('Paused'); } }
   stop() { this.state = 'stopped'; for (const m of Object.values(this.robot.motors)) m.setPower(0); this.info('OpMode stopped'); }
   stepOnce() { this.state = 'paused'; this.tickOnce(); }
@@ -60,7 +78,7 @@ export class Simulation {
     this.robot.attach(this.world, START);
     this.robot.reset();
     this.time = 0; this.tick = 0; this.acc = 0; this.scoredCount = 0; this.launchLatch = false;
-    this.state = 'stopped'; this.info('Reset');
+    this.state = 'stopped'; this.phase = this.mode === 'teleop' ? 'TELEOP' : 'AUTO'; this.matchTime = 0; this.info('Reset');
   }
 
   // Advance by wall-clock dt, scaled by speed. Fixed 20 ms ticks.
@@ -75,8 +93,17 @@ export class Simulation {
     FAULTS.forEach((f, i) => {
       if (f.on !== this.prevFaults[i]) { this.warn(`Fault ${f.on ? 'ON' : 'off'}: ${f.label}`); this.prevFaults[i] = f.on; }
     });
-    this.opmode(this.gamepad1, this.robot);
+    if (this.phase === 'AUTO') this.autoOpmode(this.robot, this);
+    else if (this.phase === 'TELEOP') this.opmode(this.gamepad1, this.robot);
+    else for (const m of Object.values(this.robot.motors)) m.setPower(0);
     this.robot.step(TICK, this.voltage);
+    this.matchTime += TICK;
+    if (this.phase === 'AUTO' && this.matchTime >= AUTO_SECONDS) {
+      if (this.mode === 'match') { this.phase = 'TELEOP'; this.matchTime = 0; this.info('AUTO over. TELEOP, drivers take control.'); }
+      else { this.phase = 'DONE'; this.stop(); }
+    } else if (this.phase === 'TELEOP' && this.mode === 'match' && this.matchTime >= TELEOP_SECONDS) {
+      this.phase = 'DONE'; this.stop(); this.info('Match over');
+    }
     this.handleBalls();
     this.field.step(TICK);
     this.world.step();
@@ -88,9 +115,11 @@ export class Simulation {
   private handleBalls() {
     const r = this.robot;
     if (r.heldBall) {
-      const h = r.holdPoint();
+      if (r.capture) r.capture.t += TICK / CAPTURE_TIME;
+      if (r.capture && r.capture.t >= 1) r.capture = null;
+      const h = r.heldBallPoint();
       r.heldBall.setNextKinematicTranslation({ x: h.x, y: h.y, z: h.z });
-      if (r.wantLaunch && !this.launchLatch) {
+      if (r.wantLaunch && !this.launchLatch && !r.capture) {
         const v = r.launchVelocity();
         r.heldBall.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
         r.heldBall.setLinvel({ x: v.x, y: v.y, z: v.z }, true);
@@ -102,9 +131,20 @@ export class Simulation {
       for (const b of this.field.balls) {
         if (b.held) continue;
         const p = b.body.translation();
-        if (Math.hypot(p.x - ip.x, p.z - ip.z) < 0.13 && p.y < 0.2) {
+        const w = new THREE.Vector3(p.x, p.y, p.z);
+        const l = r.worldToLocal(w);
+        // In front of the roller, within reach, low enough to be on the floor.
+        const inMouth = l.x > ROBOT.length / 2 - 0.02 && l.x < ROBOT.length / 2 + 0.16 && Math.abs(l.z) < 0.16 && p.y < 0.16;
+        if (inMouth) {
           b.held = true; b.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
-          r.heldBall = b.body; this.info('Intake: got ' + b.kind); break;
+          r.heldBall = b.body; r.capture = { from: l, t: 0 }; this.info('Intake: got ' + b.kind); break;
+        }
+        // Roller pulls balls in from a short cone in front, so you don't have to hit them dead on.
+        const d = Math.hypot(p.x - ip.x, p.z - ip.z);
+        if (d < 0.4 && l.x > 0 && Math.abs(l.z) < 0.3 && p.y < 0.16) {
+          const v = b.body.linvel(), k = 0.25, speed = 1.0;
+          const tx = ((ip.x - p.x) / d) * speed, tz = ((ip.z - p.z) / d) * speed;
+          b.body.setLinvel({ x: v.x + (tx - v.x) * k, y: v.y, z: v.z + (tz - v.z) * k }, true);
         }
       }
     }
@@ -117,6 +157,7 @@ export class Simulation {
     const r = this.robot, m = r.motors;
     const rows: [string, string][] = [
       ['t', this.time.toFixed(2) + ' s  tick ' + this.tick],
+      ['phase', this.phase + (this.phase === 'DONE' ? '' : `  ${Math.max(0, (this.phase === 'AUTO' ? AUTO_SECONDS : TELEOP_SECONDS) - this.matchTime).toFixed(0)} s left`)],
       ['IMU yaw', (r.yaw * 180 / Math.PI).toFixed(1) + ' deg'],
       ['yaw rate', (r.yawRate * 180 / Math.PI).toFixed(1) + ' deg/s'],
     ];

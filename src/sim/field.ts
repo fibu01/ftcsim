@@ -40,8 +40,8 @@ export class Field {
     for (const b of this.balls) {
       const r = b.kind === 'POLLEN' ? GAME.pollenRadius : GAME.nectarRadius;
       const [x, z] = ballSpot(b.kind, rng);
-      b.body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, r + 0.01, z).setLinearDamping(0.6).setAngularDamping(0.8));
-      this.world.createCollider(RAPIER.ColliderDesc.ball(r).setFriction(0.6).setRestitution(0.35).setMass(0.07), b.body);
+      b.body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, r + 0.01, z).setLinearDamping(1.2).setAngularDamping(1.5));
+      this.world.createCollider(RAPIER.ColliderDesc.ball(r).setFriction(0.6).setRestitution(0.05).setMass(0.07), b.body);
       b.held = false; b.scored = false;
     }
     this.hiveTipped = false; this.hiveCount = 0; this.cellAngle = 0;
@@ -154,8 +154,8 @@ export class Field {
     const nectar = new THREE.MeshPhysicalMaterial({ color: 0x7a3cff, roughness: 0.3, metalness: 0, clearcoat: 0.7 });
     const make = (kind: 'POLLEN' | 'NECTAR', x: number, z: number) => {
       const r = kind === 'POLLEN' ? GAME.pollenRadius : GAME.nectarRadius;
-      const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, r + 0.01, z).setLinearDamping(0.6).setAngularDamping(0.8));
-      this.world.createCollider(RAPIER.ColliderDesc.ball(r).setFriction(0.6).setRestitution(0.35).setMass(0.07), body);
+      const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, r + 0.01, z).setLinearDamping(1.2).setAngularDamping(1.5));
+      this.world.createCollider(RAPIER.ColliderDesc.ball(r).setFriction(0.6).setRestitution(0.05).setMass(0.07), body);
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 28, 20), kind === 'POLLEN' ? pollen : nectar);
       mesh.castShadow = true; mesh.receiveShadow = true; this.group.add(mesh);
       this.balls.push({ body, mesh, kind, held: false, scored: false });

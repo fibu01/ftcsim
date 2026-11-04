@@ -127,7 +127,7 @@ Scanned or CAD-accurate models, AprilTag detection, a full Java compiler, generi
 
 Ordered by what unblocks teams testing their own code. Phases 2 and 3 above are folded in.
 
-1. FTC SDK layer (Phase 2). `hardwareMap`, `DcMotorEx` with run modes, zero-power behavior, PIDF, current; `Servo`; `IMU`; `telemetry` with Driver Station semantics; `LinearOpMode` and `OpMode` lifecycle (init, start, loop, stop, `requestOpModeStop`); gamepad edge semantics. Java subset translator so pasted OpModes run unchanged. Separate Auto and TeleOp selection, run in sequence like an event.
+1. FTC SDK layer (Phase 2). DONE Nov 4 for the surface listed in HANDOFF.md. Still missing: PIDF behaviour, odometry, distance and color sensors, camera, servo mechanisms. `hardwareMap`, `DcMotorEx` with run modes, zero-power behavior, PIDF, current; `Servo`; `IMU`; `telemetry` with Driver Station semantics; `LinearOpMode` and `OpMode` lifecycle (init, start, loop, stop, `requestOpModeStop`); gamepad edge semantics. Java subset translator so pasted OpModes run unchanged. Separate Auto and TeleOp selection, run in sequence like an event.
 2. Robot configuration. `robot.json` for chassis size, mass, CG, motor model, gear ratio, wheel type, mechanism geometry, editable in the UI, with a sizing check against the manual's limits once they're in `docs/`.
 3. Run export and comparison (Phase 3). Pose, velocity, encoders, voltage, events to JSON and CSV. Save a run, change a parameter, diff. Replay.
 4. Batch runs. N seeds with randomized start pose, ball placement, sensor noise, mat friction. Success rate, not a single run.

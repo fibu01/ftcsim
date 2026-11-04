@@ -9,7 +9,8 @@ export class Input {
   usingController = false;
 
   constructor() {
-    window.addEventListener('keydown', e => { if (!(e.target instanceof HTMLTextAreaElement)) { this.keys.add(e.code); if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); } });
+    const inField = (t: EventTarget | null) => t instanceof HTMLTextAreaElement || t instanceof HTMLInputElement || t instanceof HTMLSelectElement;
+    window.addEventListener('keydown', e => { if (!inField(e.target)) { this.keys.add(e.code); if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); } });
     window.addEventListener('keyup', e => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
   }

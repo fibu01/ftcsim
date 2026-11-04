@@ -3,6 +3,7 @@ import { FAULTS } from '../sim/faults';
 import { View, CameraMode } from '../render/scene';
 
 export class Hud {
+  onToggleCode: (() => void) | null = null;
   private root = document.getElementById('hud')!;
   private tel!: HTMLElement; private logEl!: HTMLElement; private stateEl!: HTMLElement; private logLen = 0;
   private fps = 0; private frames = 0; private last = performance.now();
@@ -10,12 +11,13 @@ export class Hud {
   constructor(private sim: Simulation, private view: View) {
     this.root.innerHTML = `
       <div id="runbar" class="panel">
-        <select id="mode" title="What runs when you press Run"><option value="teleop" selected>TeleOp</option><option value="auto">Autonomous (30 s)</option><option value="match">Full match</option></select>
         <button id="run" class="primary">Run</button>
         <button id="pause">Pause</button>
         <button id="step">Step</button>
         <button id="reset">Reset</button>
         <button id="limitsBtn" title="What is and isn't simulated">Limits</button>
+        <button id="codeBtn" title="Java OpMode editor">Code</button>
+        <button id="keysBtn" title="Keyboard controls">Keys</button>
         <span class="state" id="state">stopped</span>
         <select id="speed"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="5">5x</option></select>
         <select id="quality"><option value="high" selected>High</option><option value="low">Low</option></select>
@@ -23,10 +25,11 @@ export class Hud {
       <div class="badge">Field layout is a placeholder. Sizes from the manual, positions not yet.</div>
       <div id="telemetry" class="panel"><h3>Telemetry</h3><table></table></div>
       <div id="faults" class="panel"><h3>Faults</h3></div>
-      <div id="help" class="panel"><b>W/S</b> drive <b>A/D</b> strafe <b>←/→</b> rotate <b>Q/E</b> intake in/out <b>R/F</b> lift <b>Space</b> launch <b>Shift</b> slow mode. <b>1-4</b> cameras. A plugged-in controller works too.</div>
+      <div id="help" class="panel" hidden>Keyboard maps to gamepad1: <b>W/S</b> left stick Y, <b>A/D</b> left stick X, <b>←/→</b> right stick X, <b>Q/E</b> right and left trigger, <b>R/F</b> dpad up and down, <b>Space</b> right bumper, <b>Shift</b> B, <b>Z</b> A. <b>1-4</b> cameras. A plugged-in controller takes over when touched. The built-in TeleOp uses these; a Java TeleOp reads whatever it wants from gamepad1.</div>
       <div id="log" class="panel"></div>
       <div id="limits" class="panel" hidden><h3>What this sim does and doesn't model</h3>
         <b>Modeled</b>: mecanum body dynamics with a fitted-style acceleration model, Rapier collisions, battery sag and drain, IMU noise and drift, encoder jitter and 40 ms read hold, wheel slip toward commanded speed when blocked, the faults in the panel.<br>
+        <b>Java OpModes</b>: a Java subset runs in the browser against a Sim SDK (hardwareMap, DcMotorEx, IMU, Servo, telemetry, gamepads, LinearOpMode and OpMode). No generics beyond type args, no interfaces, anonymous classes, or threads. Anything the SDK layer lacks fails with "Unsupported SDK call" and the line.<br>
         <b>Not modeled</b>: motor torque and stall curves, per-wheel traction and roller friction, pitch and roll (the ramp is ridden flat), servos, odometry pods, distance and color sensors, a camera (the sample auto reads true ball positions), hub loop timing, partner and opponent robots, penalties.<br>
         <b>From the manual (TU07)</b>: field size, tile size, ball sizes, match timing, tip and CELL points, motor constants from the goBILDA 5203 sheet.<br>
         <b>Still placeholders</b>: element positions and the HIVE and FLOWER shapes (roadmap item 7), tip threshold, robot mass, wall height.<br>
@@ -40,15 +43,18 @@ export class Hud {
     this.stateEl = this.root.querySelector('#state')!;
     const q = (s: string) => this.root.querySelector(s) as HTMLElement;
     q('#run').onclick = () => sim.run();
-    (q('#mode') as HTMLSelectElement).onchange = e => { sim.mode = (e.target as HTMLSelectElement).value as 'teleop' | 'auto' | 'match'; sim.reset(); };
+
     q('#pause').onclick = () => sim.pause();
     q('#step').onclick = () => sim.stepOnce();
     q('#reset').onclick = () => sim.reset();
     q('#limitsBtn').onclick = () => { const l = q('#limits'); l.hidden = !l.hidden; };
+    q('#codeBtn').onclick = () => this.onToggleCode?.();
+    q('#keysBtn').onclick = () => { const h = q('#help'); h.hidden = !h.hidden; };
     (q('#speed') as HTMLSelectElement).onchange = e => { sim.speed = parseFloat((e.target as HTMLSelectElement).value); };
     (q('#quality') as HTMLSelectElement).onchange = e => view.setQuality((e.target as HTMLSelectElement).value as 'high' | 'low');
     this.root.querySelectorAll<HTMLButtonElement>('#cams button').forEach(b => { b.onclick = () => this.setCam(b.dataset.cam as CameraMode); });
     window.addEventListener('keydown', e => {
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
       const cams: CameraMode[] = ['orbit', 'chase', 'driver', 'robot'];
       if (e.code.startsWith('Digit') && +e.code[5] >= 1 && +e.code[5] <= 4) this.setCam(cams[+e.code[5] - 1]);
     });

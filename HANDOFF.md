@@ -1,5 +1,15 @@
 # ftcsim handoff (updated 2026-11-04)
 
+## Phase 2 done (Nov 4): Java OpModes run in the browser
+- src/java/: lexer, parser (Java subset: classes, fields, methods, locals, arrays, for/while/do/switch/try, ternary, casts, lambdas, enhanced for, annotations), generator-based interpreter (yields once per sim tick at opModeIsActive/idle/sleep/waitForStart), Sim SDK (sdk.ts), OpMode runner (opmode.ts).
+- Sim SDK surface: hardwareMap.get(Class, name) and get(name) with aliases for common motor names, DcMotor/DcMotorEx (power, direction, run modes incl. RUN_TO_POSITION and STOP_AND_RESET_ENCODER, zero power, encoder position and velocity, setVelocity, target position, isBusy, current, enable), Servo and CRServo (stored only, no mechanism), IMU (initialize, resetYaw, getRobotYawPitchRollAngles().getYaw(AngleUnit), getRobotAngularVelocity), telemetry (addData with format strings, addLine, update, log), gamepad1 and gamepad2 fields plus xWasPressed()/WasReleased() edges, ElapsedTime, Math, Range, String.format, Integer/Double, System.out, Thread.sleep, LinearOpMode (waitForStart, opModeIsActive, isStopRequested, sleep, idle, requestOpModeStop, getRuntime) and iterative OpMode (init, init_loop, start, loop, stop).
+- Anything else: "Unsupported SDK call: X" with the line. Unknown hardware name: SDK-style error listing the config names. Compile errors and runtime errors highlight the line in Monaco.
+- UI: Code button opens a Monaco pane (tabs, Load sample, Compile, Ctrl+Enter). Driver Station panel: mode, Auto and TeleOp OpMode selects (built-ins plus compiled classes by @Autonomous/@TeleOp), INIT, START, STOP, telemetry lines. The file being edited becomes the selected OpMode on compile.
+- Samples: slide 21 working, slide 21 buggy, an encoder + IMU autonomous. The SDK's BasicOmniOpMode_Linear.java runs unchanged (unit test).
+- Verified: 26 vitest tests (19 for the Java layer); headless UI run: working TeleOp drives 1.38 m forward in 1.5 s, buggy one drives backward, wrong hardware name stops the OpMode with the line, encoder auto drives 1.2 m, turns to -37 deg, lifts.
+- config.ts ROBOT.mirroredLeftMotors (default true): left motors need setDirection(REVERSE) like a real chassis. The deck's slide 21 code lacks those two lines; the samples here add them.
+- Monaco adds ~7 MB to the bundle (2.5 MB gzipped). Fine for GitHub Pages; lazy-load later if it matters.
+
 ## State
 - Phase 1 built and pushed: field, robot, Rapier physics, keyboard and controller drive, four cameras, telemetry, event log, five faults, run/pause/step/reset, speed, quality toggle. Reset rebuilds the physics world so replays match.
 - Match clock: TeleOp, Autonomous (30 s), or Full match (AUTO 30 s then TELEOP 120 s, from the postcard, [confirm in manual]). Built-in sample auto (src/opmode/sampleAuto.ts) seeks POLLEN by a vision stand-in bearing, intakes, aims at the HIVE, launches, repeats, parks at 24 s. Headless run on Nov 4 (lane z = 0.9): 3 launches, 2 in the CELL.

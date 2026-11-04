@@ -15,8 +15,8 @@ export class Robot {
   body!: RAPIER.RigidBody;
   group = new THREE.Group();
   motors = {
-    frontLeft: new SimMotor('frontLeft', -1), frontRight: new SimMotor('frontRight'),
-    backLeft: new SimMotor('backLeft', -1), backRight: new SimMotor('backRight'),
+    frontLeft: new SimMotor('frontLeft', ROBOT.mirroredLeftMotors ? -1 : 1), frontRight: new SimMotor('frontRight'),
+    backLeft: new SimMotor('backLeft', ROBOT.mirroredLeftMotors ? -1 : 1), backRight: new SimMotor('backRight'),
     lift: new SimMotor('lift'), intake: new SimMotor('intake'),
   };
   liftPos = 0; // meters
@@ -139,8 +139,9 @@ export class Robot {
 
     // Current draw and voltage sag.
     let amps = BATTERY.baseAmps;
-    list.forEach((mo, i) => { const cmd = mo.commandedSpeed(voltage); amps += Math.abs(mo.effectivePower()) * ROBOT.motorStallAmps * Math.max(0.1, 1 - Math.abs(w[i]) / Math.max(1e-6, Math.abs(cmd) + 1e-6) * 0.9); });
-    amps += Math.abs(m.lift.effectivePower()) * 4 + Math.abs(m.intake.effectivePower()) * 3;
+    list.forEach((mo, i) => { const cmd = mo.commandedSpeed(voltage); mo.amps = Math.abs(mo.effectivePower()) * ROBOT.motorStallAmps * Math.max(0.1, 1 - Math.abs(w[i]) / Math.max(1e-6, Math.abs(cmd) + 1e-6) * 0.9); amps += mo.amps; });
+    m.lift.amps = Math.abs(m.lift.effectivePower()) * 4; m.intake.amps = Math.abs(m.intake.effectivePower()) * 3;
+    amps += m.lift.amps + m.intake.amps;
     this.amps = amps;
     this.openCircuit -= amps * dt * BATTERY.drainPerCoulomb;
     const R = BATTERY.internalResistance * (weak.on ? 1 + 2.5 * weak.severity : 1);

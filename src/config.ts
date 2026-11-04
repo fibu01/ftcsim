@@ -19,6 +19,7 @@ export const ROBOT = {
   mass: 12, // kg [estimate]
   wheelRadius: 0.048, // 96 mm mecanum [estimate]
   wheelWidth: 0.04,
+  mirroredLeftMotors: true, // left motors face the other way, so code must setDirection(REVERSE) like every SDK sample. false matches the Feb 2026 sim.
   wheelbase: 0.30, // front to back axle [estimate]
   trackWidth: 0.40, // left to right wheel center. Outer wheel faces at 0.44 m, under the 0.457 m limit [estimate]
   // goBILDA 5203 312 rpm motor, from the manufacturer spec sheet as supplied by Justin on Nov 4 2026.

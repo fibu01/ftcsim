@@ -7,11 +7,20 @@ import { GamepadState, emptyGamepad } from './gamepad';
 import { FAULTS } from './faults';
 import { ROBOT } from '../config';
 import { Rng } from '../util/rng';
+import { OpModeHandle } from '../java/opmode';
+import { SdkHost } from '../java/sdk';
+
+// Built-in OpModes written in TypeScript (Phase 1 drive and sample auto) share the handle interface with Java ones.
+export class BuiltinOpMode implements OpModeHandle {
+  failed = false;
+  constructor(public label: string, private fn: () => void) {}
+  init() {} start() {} loop() { this.fn(); } stop() {}
+}
 
 const CAPTURE_TIME = 0.4; // seconds for a ball to travel from the roller to the hold point
 
 export interface LogEntry { t: number; level: 'info' | 'warn' | 'error'; msg: string }
-export type RunState = 'stopped' | 'running' | 'paused';
+export type RunState = 'stopped' | 'init' | 'running' | 'paused';
 export type Mode = 'teleop' | 'auto' | 'match';
 export type Phase = 'AUTO' | 'TRANSITION' | 'TELEOP' | 'DONE';
 // Manual TU07 10.4: AUTO 30 s, 8 s transition, TELEOP 2:00.
@@ -35,8 +44,25 @@ export class Simulation {
   private prevFaults = FAULTS.map(f => f.on);
   private launchLatch = false;
   private scoredCount = 0;
-  opmode: (g: GamepadState, r: Robot) => void = () => {};
-  autoOpmode: (r: Robot, sim: Simulation) => void = () => {};
+  // Factories because a Java OpMode instance is single-use, like on the hub.
+  teleopFactory: () => OpModeHandle = () => new BuiltinOpMode('none', () => {});
+  autoFactory: () => OpModeHandle = () => new BuiltinOpMode('none', () => {});
+  active: OpModeHandle | null = null;
+  padNow: GamepadState = emptyGamepad();   // what the running OpMode sees this tick
+  dsTelemetry: string[] = [];              // last telemetry.update() from the Java OpMode
+  onJavaError: ((msg: string, line: number) => void) | null = null;
+  private hostRng = new Rng(5);
+  readonly host: SdkHost = {
+    robot: null as unknown as Robot,
+    gamepad1: () => this.padNow,
+    gamepad2: () => emptyGamepad(),
+    now: () => this.time,
+    log: (level, msg) => this.push(level, msg),
+    telemetryOut: lines => { this.dsTelemetry = lines; },
+    requestStop: () => { this.info('requestOpModeStop()'); this.stopRequested = true; },
+    rng: () => this.hostRng.next(),
+  };
+  private stopRequested = false;
   mode: Mode = 'teleop';
   phase: Phase = 'TELEOP';
   matchTime = 0; // seconds since the current phase started
@@ -47,6 +73,7 @@ export class Simulation {
     this.field = new Field(this.world, this.seed);
     this.robot = new Robot(this.world, START);
     this.scene.add(this.field.group, this.robot.group);
+    (this.host as { robot: Robot }).robot = this.robot;
     this.info('Simulator ready. Press Run.');
   }
 
@@ -58,20 +85,39 @@ export class Simulation {
     if (this.log.length > 400) this.log.shift();
   }
 
+  // Driver Station INIT: build the OpMode and run its init code, robot stays still.
+  initOpMode() {
+    if (this.state !== 'stopped') return;
+    this.phase = this.mode === 'teleop' ? 'TELEOP' : 'AUTO'; this.matchTime = 0; this.stopRequested = false;
+    this.active = this.phase === 'AUTO' ? this.autoFactory() : this.teleopFactory();
+    this.padNow = this.phase === 'AUTO' ? emptyGamepad() : this.gamepad1;
+    this.dsTelemetry = [];
+    this.active.init();
+    if (this.active.failed) { this.active = null; return; }
+    this.state = 'init'; this.info(`INIT ${this.active.label}`);
+  }
   run() {
     if (this.state === 'running') return;
-    if (this.state === 'stopped') {
-      this.phase = this.mode === 'teleop' ? 'TELEOP' : 'AUTO'; this.matchTime = 0;
-      this.info(this.mode === 'match' ? 'Match start: AUTO' : this.mode === 'auto' ? 'Autonomous started' : 'TeleOp started');
+    if (this.state === 'stopped') this.initOpMode();
+    if (this.state === 'init' && this.active) {
+      this.active.start();
+      if (this.active.failed) { this.stop(); return; }
+      this.info(this.mode === 'match' ? `Match start: AUTO, ${this.active.label}` : this.mode === 'auto' ? `Autonomous started: ${this.active.label}` : `TeleOp started: ${this.active.label}`);
     }
-    this.state = 'running';
+    if (this.state === 'init' || this.state === 'paused') this.state = 'running';
   }
   pause() { if (this.state === 'running') { this.state = 'paused'; this.info('Paused'); } }
-  stop() { this.state = 'stopped'; for (const m of Object.values(this.robot.motors)) m.setPower(0); this.info('OpMode stopped'); }
+  stop() {
+    const was = this.state; this.state = 'stopped';
+    if (this.active) { this.active.stop(); this.active = null; }
+    for (const m of Object.values(this.robot.motors)) m.setPower(0);
+    if (was !== 'stopped') this.info('OpMode stopped');
+  }
   stepOnce() { this.state = 'paused'; this.tickOnce(); }
 
   // Rebuild the physics world so a reset run replays bit for bit.
   reset() {
+    if (this.active) { this.active.stop(); this.active = null; }
     this.world.free();
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
     this.world.timestep = TICK;
@@ -98,21 +144,29 @@ export class Simulation {
     // Gamepad disconnect: the driver station drops the pad for a moment, sticks read zero.
     const gd = FAULTS.find(f => f.id === 'gamepadDisconnect')!, hd = FAULTS.find(f => f.id === 'hubDisconnect')!;
     if (gd.on && this.time >= this.nextGamepadDrop) { this.padDownUntil = this.time + 0.8 + 1.5 * gd.severity; this.nextGamepadDrop = this.time + 5 + this.faultRng.range(0, 8) * (1.2 - gd.severity); this.warn('Gamepad disconnected'); }
-    const pad = this.time < this.padDownUntil ? emptyGamepad() : this.gamepad1;
+    const pad = this.time < this.padDownUntil || this.phase !== 'TELEOP' ? emptyGamepad() : this.gamepad1;
+    this.padNow = pad;
     if (hd.on && this.time >= this.nextHubDrop && this.robot.hubDown <= 0) { this.robot.hubDown = 1 + 2 * hd.severity; this.robot.hubDownReason = 'HUB DISCONNECT'; this.nextHubDrop = this.time + 6 + this.faultRng.range(0, 10) * (1.2 - hd.severity); }
     const hubWasDown = this.robot.hubDown > 0;
-    if (this.phase === 'AUTO') this.autoOpmode(this.robot, this);
-    else if (this.phase === 'TELEOP') this.opmode(pad, this.robot);
-    else for (const m of Object.values(this.robot.motors)) m.setPower(0); // TRANSITION and DONE: OpMode stopped, motors off
+    if (this.active && (this.phase === 'AUTO' || this.phase === 'TELEOP')) {
+      this.active.loop();
+      if (this.active.failed) { this.error(`${this.active.label} stopped after an error`); this.stop(); return; }
+      if (this.stopRequested) { this.stop(); return; }
+    } else for (const m of Object.values(this.robot.motors)) m.setPower(0); // TRANSITION and DONE: OpMode stopped, motors off
     this.robot.step(TICK);
     if (this.robot.hubDown > 0 && !hubWasDown) this.error(`${this.robot.hubDownReason}: hub reset, motors off for ${this.robot.hubDown.toFixed(1)} s`);
     if (this.robot.hubDown <= 0 && hubWasDown) this.info('Hub back');
     this.matchTime += TICK;
     if (this.phase === 'AUTO' && this.matchTime >= AUTO_SECONDS) {
+      if (this.active) { this.active.stop(); this.active = null; }
       if (this.mode === 'match') { this.phase = 'TRANSITION'; this.matchTime = 0; this.info(`AUTO over. Autonomous OpMode stopped. ${TRANSITION_SECONDS} s until TELEOP.`); }
       else { this.phase = 'DONE'; this.stop(); this.info(`Autonomous over. Score ${this.score()}`); }
     } else if (this.phase === 'TRANSITION' && this.matchTime >= TRANSITION_SECONDS) {
-      this.phase = 'TELEOP'; this.matchTime = 0; this.info('TELEOP. Drivers take control.');
+      this.phase = 'TELEOP'; this.matchTime = 0;
+      this.active = this.teleopFactory(); this.padNow = this.gamepad1; this.dsTelemetry = [];
+      this.active.init(); if (!this.active.failed) this.active.start();
+      if (this.active.failed) { this.stop(); return; }
+      this.info(`TELEOP. Drivers take control: ${this.active.label}`);
     } else if (this.phase === 'TELEOP' && this.mode === 'match' && this.matchTime >= TELEOP_SECONDS) {
       this.phase = 'DONE'; this.stop(); this.info(`Match over. Score ${this.score()} (${this.field.hiveCount} in CELL, HIVE ${this.field.hiveTipped ? 'tipped' : 'not tipped'}; no LEAVE, PARK, FLOWER or GARDEN scoring yet)`);
     }

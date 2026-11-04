@@ -1,21 +1,25 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { Simulation } from './sim/world';
+import { Simulation, BuiltinOpMode } from './sim/world';
 import { View } from './render/scene';
 import { Hud } from './ui/hud';
 import { Input } from './input/input';
 import { defaultTeleop } from './opmode/defaultTeleop';
 import { FAULTS } from './sim/faults';
 import { sampleAuto } from './opmode/sampleAuto';
+import { CodePane } from './ui/editor';
 
 async function main() {
   await RAPIER.init();
   const canvas = document.getElementById('view') as HTMLCanvasElement;
   const view = new View(canvas);
   const sim = new Simulation();
-  sim.opmode = defaultTeleop;
-  sim.autoOpmode = sampleAuto;
+  sim.teleopFactory = () => new BuiltinOpMode('Built-in TeleOp', () => defaultTeleop(sim.padNow, sim.robot));
+  sim.autoFactory = () => new BuiltinOpMode('Built-in sample auto', () => sampleAuto(sim.robot, sim));
   view.scene.add(sim.scene);
   const hud = new Hud(sim, view);
+  const code = new CodePane(sim, document.getElementById('hud')!);
+  hud.onToggleCode = () => code.toggle();
+  (window as any).code = code;
   const input = new Input();
   (window as any).sim = sim; (window as any).view = view; (window as any).FAULTS = FAULTS;
 
@@ -28,6 +32,7 @@ async function main() {
     view.update(sim.robot, dt);
     view.render();
     hud.update();
+    code.update();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
